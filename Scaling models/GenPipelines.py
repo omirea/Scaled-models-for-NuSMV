@@ -4,40 +4,34 @@ Generate a scaled NuSMV data-driven pipeline model with n pipes,
 where n is an input from the user
 """
 
-import sys
 import math
 
 
 def get_config(i):
     #base config values scaled by the pipeline's index group
-    group_multiplier = ((i - 1) // 3) + 1
+    group_multiplier=((i-1)//3)+1
 
     #periods scale up (20, 30, 60 -> 40, 60, 120 -> 60, 90, 180...)
-    periods_pool = [20 * group_multiplier, 30 * group_multiplier, 60 * group_multiplier]
-    period = periods_pool[(i - 1) % 3]
+    periods_pool=[20*group_multiplier, 30*group_multiplier, 60*group_multiplier]
+    period=periods_pool[(i-1)%3]
 
-    if (i - 1) % 3 == 0:
-        execs = [2, 1, 2]
-    elif (i - 1) % 3 == 1:
-        execs = [1, 2, 1]
+    if(i-1)%3==0:
+        execs =[2,1,2]
+    elif(i-1)%3==1:
+        execs=[1,2,1]
     else:
-        execs = [1, 1, 1]
+        execs=[1,1,1]
 
     return period, execs
 
 
-def gen_stage_module(pipeline_idx, stage_idx, exec_time):
-    """
-    Generates a  multi-cycle stage module.
-    Forces sequential state progression and explicit state freezing
-    when a higher-priority task preempts the processor.
-    """
-    name = f"pipe_{pipeline_idx}_{stage_idx}"
-    sym = f"p_{pipeline_idx}_{stage_idx}"
-    mod_size = exec_time
-    mod_val = mod_size + 1
+def gen_stage_module(pipeline_idx,stage_idx,exec_time):
+    name=f"pipe_{pipeline_idx}_{stage_idx}"
+    sym=f"p_{pipeline_idx}_{stage_idx}"
+    mod_size=exec_time
+    mod_val=mod_size+1
 
-    smv = [
+    smv=[
         f"-- Pipeline {pipeline_idx}, stage {stage_idx}. Bound: 0..{mod_size}",
         f"MODULE {name}(timeout, processor_granted)",
         f"VAR",
@@ -64,13 +58,13 @@ def gen_stage_module(pipeline_idx, stage_idx, exec_time):
 
 
 def gen_main(n, configs):
-    smv = []
+    smv=[]
 
     #global clock timer
-    periods = [configs[i][0] for i in range(1, n + 1)]
-    timer_max = periods[0]
+    periods=[configs[i][0] for i in range(1, n+ 1)]
+    timer_max=periods[0]
     for p in periods[1:]:
-        timer_max = timer_max * p // math.gcd(timer_max, p)
+        timer_max=timer_max*p // math.gcd(timer_max,p)
 
     smv.append("MODULE main")
     smv.append("")
@@ -82,17 +76,17 @@ def gen_main(n, configs):
     smv.append(f"  next(timer) := (timer + 1) mod {timer_max};")
     smv.append("")
 
-    #timeout define
+    # for timeout
     smv.append("DEFINE")
-    unique_periods = sorted(set(periods))
+    unique_periods=sorted(set(periods))
     for p in unique_periods:
         smv.append(f"  timeout{p} := timer mod {p} = 0;")
     smv.append("")
 
-    #pipeline instance declarations
+    #decl of pipeline instance
     smv.append("VAR")
     smv.append("-- Instantiated data-driven pipesmv:")
-    for i in range(1, n + 1):
+    for i in range(1, n+1):
         period, _ = configs[i]
         smv.append(f"  P_{i}_1: pipe_{i}_1(timeout{period}, processor_granted);")
         smv.append(f"  P_{i}_2: pipe_{i}_2(P_{i}_1.finish, processor_granted);")
@@ -101,24 +95,23 @@ def gen_main(n, configs):
 
     #symbol table mapping
     sym_list = ", ".join(
-        f"p_{i}_{s}" for i in range(1, n + 1) for s in [1, 2, 3]
+        f"p_{i}_{s}" for i in range(1, n+1) for s in [1,2,3]
     )
     smv.append(f"  aux: {{idle, {sym_list}}};")
     smv.append("")
 
-    #rate monotonic scheduler
+    #scheduler for rate monotonic
     sorted_pipesmv = sorted(range(1, n + 1), key=lambda idx: configs[idx][0])
 
     smv.append("DEFINE")
     smv.append("  processor_granted := case")
     for i in sorted_pipesmv:
-        #for s in [1, 2, 3]:
         smv.append(f"                         P_{i}_{1}.request: p_{i}_{1}; P_{i}_{2}.request: p_{i}_{2}; P_{i}_{3}.request: p_{i}_{3};")
     smv.append("                         TRUE: idle;")
     smv.append("                       esac;")
     smv.append("")
 
-    # ---- error condition logic block ----
+    #error condition block
     error_terms = []
     for i in range(1, n + 1):
         period, _ = configs[i]
@@ -135,13 +128,13 @@ def gen_main(n, configs):
 
 
 def generate(n, outfile=None):
-    configs = {i: get_config(i) for i in range(1, n + 1)}
+    configs = {i: get_config(i) for i in range(1, n+1)}
 
     parts = [
         f"--Auto-Generated Data-Driven Pipeline Benchmark.\n-- Scale factor: {n} pipesmv.\n--\n"
     ]
 
-    for i in range(1, n + 1):
+    for i in range(1, n+1):
         period, execs = configs[i]
         parts.append(
             f"--Pipeline {i}. Period {period}ms, stages: {execs[0]}ms, {execs[1]}ms, {execs[2]}ms\n")
