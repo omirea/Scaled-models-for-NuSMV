@@ -1,7 +1,7 @@
 
 #!/usr/bin/env python3
 """
-Generate a scaled NuSMV data-driven pipeline model with n pipes,
+Generate a scaled NuSMV cache protocol model with n pipes,
 where n is an input from the user
 """
 
